@@ -66,12 +66,12 @@ impervious-paradox/
 │
 ├── src/
 │   ├── 01_data/
-│   │   ├── compute_hand_10m.py          # HAND from 3DEP 10m DEM (pysheds)
-│   │   └── add_nlcd_filter.py           # Attach NLCD 2016 land-use classes
+│   │   └── compute_hand_10m.py          # HAND from 3DEP 10m DEM (pysheds)
 │   ├── 02_modeling/
 │   │   └── modeling_v2.py               # Spatial CV · Ridge + LightGBM · 12 features
 │   ├── 03_interpretation/
 │   │   ├── interpretation_v2.py         # SHAP k-means archetypes (k = 4)
+│   │   ├── add_nlcd_filter.py           # Attach NLCD 2016; ISA-paradox robustness check
 │   │   └── residential_hotspots.py      # Residential ISA-paradox analysis
 │   ├── 04_counterfactual/
 │   │   ├── interventions_v3_residential.py   # +20 % ISA counterfactual
@@ -162,13 +162,15 @@ from `data/processed/` and writes back to it or to `outputs/`.
 ```bash
 # Stage 1 — data preparation (~5 min)
 python src/01_data/compute_hand_10m.py
-python src/01_data/add_nlcd_filter.py
 
 # Stage 2 — modeling (~45–75 min, dominated by spatial CV)
 python src/02_modeling/modeling_v2.py
 
-# Stage 3 — interpretation (~5 min)
+# Stage 3 — interpretation (~10 min)
+# Run in order: add_nlcd_filter.py depends on parcel_archetypes_v2.gpkg
+# produced by interpretation_v2.py; residential_hotspots.py depends on both.
 python src/03_interpretation/interpretation_v2.py
+python src/03_interpretation/add_nlcd_filter.py
 python src/03_interpretation/residential_hotspots.py
 
 # Stage 4 — counterfactuals (~10 min)
