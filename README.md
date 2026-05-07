@@ -1,0 +1,266 @@
+# The Impervious Paradox
+
+**Parcel-scale urban flood risk in Houston's Brays Bayou watershed —
+Ridge regression and SHAP archetypes**
+
+*Target venue: Computers, Environment and Urban Systems*
+
+*Status: pre-print in preparation · code reproducible · data not redistributed*
+
+---
+
+## Overview
+
+Using 115,820 residential parcels in Houston's Brays Bayou watershed and
+Hurricane Harvey (2017) FEMA flood-depth observations, this project tests
+whether reducing impervious surface predicts reduced flood risk at parcel
+scale. Across all four residential SHAP archetypes, the most impervious
+quintile (Q5) flooded *less* than the least impervious (Q1) — by up to
+1.31 ft in topographic hotspots. We interpret this as spatial confounding:
+in mature urban watersheds, impervious surface area (ISA) encodes historical
+siting decisions that correlate with flood vulnerability, not its cause.
+
+---
+
+## Headline Finding
+
+> **The impervious paradox holds in every archetype.**
+> Q5 parcels (highest ISA) flooded less than Q1 (lowest ISA) across all four
+> residential archetypes, with 95 % bootstrapped confidence intervals
+> excluding zero in each case. The *Hotspot* archetype — the most
+> topographically exposed group — showed the largest reversal: −1.31 ft
+> (Q5 − Q1).
+
+This implies that parcel-scale ISA reduction alone is unlikely to rescue
+high-risk parcels from flooding in mature urban watersheds, because siting
+history is entangled with cover composition.
+
+---
+
+## Study Area and Data Sources
+
+| Source | Variable | License | Notes |
+|---|---|---|---|
+| **HCAD** (Harris County Appraisal District) | Parcel geometry, lot area | Public record | 115,820 residential parcels, Brays Bayou watershed |
+| **FEMA Harvey** flood-depth raster (3 m) | Flood depth (ft) — response variable | Public domain | Hurricane Harvey, Aug 2017; zonal mean to parcel |
+| **GHSL ISA 2015** (Global Human Settlement Layer) | Impervious surface fraction (`ISA_frac`) | CC BY 4.0 | 10 m resolution; zonal mean per parcel |
+| **3DEP** (USGS, 10 m) | Elevation, slope, TWI, HAND, flow accumulation | Public domain | Conditioned via pysheds; HAND = Height Above Nearest Drainage |
+| **NHD** (National Hydrography Dataset) | Stream flowlines | Public domain | Used for HAND computation and stream-distance feature |
+| **NLCD 2016** (National Land Cover Database) | Land-use class | Public domain | Residential filter: classes 22, 23, 24 |
+| **OpenStreetMap** | Street network | ODbL | Distance-to-street feature |
+
+Raw files are not distributed with this repository. See
+[`data/README.md`](data/README.md) for acquisition instructions and
+file-size guidance.
+
+---
+
+## Repository Structure
+
+```
+impervious-paradox/
+├── README.md
+├── LICENSE
+├── .gitignore
+├── requirements.txt
+│
+├── src/
+│   ├── 01_data/
+│   │   ├── compute_hand_10m.py          # HAND from 3DEP 10m DEM (pysheds)
+│   │   └── add_nlcd_filter.py           # Attach NLCD 2016 land-use classes
+│   ├── 02_modeling/
+│   │   └── modeling_v2.py               # Spatial CV · Ridge + LightGBM · 12 features
+│   ├── 03_interpretation/
+│   │   ├── interpretation_v2.py         # SHAP k-means archetypes (k = 4)
+│   │   └── residential_hotspots.py      # Residential ISA-paradox analysis
+│   ├── 04_counterfactual/
+│   │   ├── interventions_v3_residential.py   # +20 % ISA counterfactual
+│   │   └── dose_response_isa.py              # ISA dose-response (×1.0 – ×2.0)
+│   └── 05_figures/
+│       ├── generate_paper_figures.py
+│       ├── generate_fig3_fig4_residential.py
+│       ├── generate_cv_diagnostic_figures.py
+│       ├── compose_supp_s1.py
+│       ├── regenerate_supp_s3.py
+│       ├── model_comparison_v2.py
+│       ├── model_comparison_visual.py
+│       └── extract_slide_panels.py
+│
+├── outputs/
+│   ├── figures/paper/                   # Publication figures (PDF + PNG, committed)
+│   │   ├── fig1_cv_performance.*
+│   │   ├── fig2_shap_importance.*
+│   │   ├── fig3_residential_archetypes.*
+│   │   ├── fig4_residential_isa_paradox.*
+│   │   ├── fig5_counterfactual.*
+│   │   ├── figS1_interventions.*
+│   │   ├── figS2_cluster_stability.*
+│   │   ├── supp_s1_cv_diagnostics.*
+│   │   ├── supp_s3_intervention_diagnostic.*
+│   │   ├── model_comparison_v2.png
+│   │   ├── cv_diagnostics/
+│   │   ├── dose_response/
+│   │   └── fig5_residential/
+│   └── tables/                          # Summary CSVs (committed)
+│       ├── cv_summary_v2.csv
+│       ├── archetype_characteristics_v2.csv
+│       ├── cluster_stability_v2.csv
+│       ├── dose_response_summary.csv
+│       ├── intervention_scenarios_residential.csv
+│       ├── per_fold_metrics_ridge.csv
+│       └── per_fold_residential_ridge.csv
+│
+├── data/
+│   ├── raw/          # gitignored — see data/README.md to download
+│   ├── processed/    # gitignored — regenerated by pipeline
+│   └── README.md
+│
+├── paper/            # Paper draft (added before push — not yet committed)
+├── deck/             # Conference deck and speaker notes
+└── docs/             # Methodology notes
+```
+
+---
+
+## Reproducing the Analysis
+
+### 1. Clone and create environment
+
+```bash
+git clone https://github.com/YOUR_USERNAME/impervious-paradox.git
+cd impervious-paradox
+python -m venv .venv
+# Linux / macOS
+source .venv/bin/activate
+# Windows
+.venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+Python 3.12+ recommended (developed on 3.12.10). See `requirements.txt` for pinned versions.
+
+### 2. Acquire raw data
+
+Follow [`data/README.md`](data/README.md). Place files at the paths
+listed there before running the pipeline. Minimum required set:
+
+| File | Size | Destination |
+|---|---|---|
+| HCAD parcel geodatabase | ~93 MB | `data/raw/hcad_parcels_raw.gpkg` |
+| FEMA Harvey flood depth (3 m) | ~153 MB | `data/raw/harvey_depth_brays.tif` |
+| GHSL ISA 2015 | ~43 MB | `data/raw/ghsl_2015.tif` |
+| 3DEP 10 m DEM | ~24 MB | `data/raw/dem.tif` |
+| NLCD 2016 (reprojected) | ~2 MB | `data/raw/nlcd_2016_brays.tif` |
+| NHD flowlines | ~0.1 MB | `data/raw/nhd_streams_brays.gpkg` |
+| OSM streets | ~22 MB | `data/raw/osm_streets.gpkg` |
+
+### 3. Run the pipeline
+
+Execute scripts in stage order from the repo root. Each stage reads
+from `data/processed/` and writes back to it or to `outputs/`.
+
+```bash
+# Stage 1 — data preparation (~5 min)
+python src/01_data/compute_hand_10m.py
+python src/01_data/add_nlcd_filter.py
+
+# Stage 2 — modeling (~45–75 min, dominated by spatial CV)
+python src/02_modeling/modeling_v2.py
+
+# Stage 3 — interpretation (~5 min)
+python src/03_interpretation/interpretation_v2.py
+python src/03_interpretation/residential_hotspots.py
+
+# Stage 4 — counterfactuals (~10 min)
+python src/04_counterfactual/interventions_v3_residential.py
+python src/04_counterfactual/dose_response_isa.py
+
+# Stage 5 — regenerate paper figures (~5 min)
+python src/05_figures/generate_paper_figures.py
+python src/05_figures/generate_fig3_fig4_residential.py
+python src/05_figures/generate_cv_diagnostic_figures.py
+python src/05_figures/compose_supp_s1.py
+python src/05_figures/regenerate_supp_s3.py
+python src/05_figures/model_comparison_v2.py
+```
+
+> **Skip to figures.** The `outputs/figures/paper/` and `outputs/tables/`
+> directories are committed. You can inspect all publication figures and
+> summary tables without running the pipeline.
+
+---
+
+## Key Results
+
+| Item | Value |
+|---|---|
+| Parcels (residential, Brays Bayou watershed) | 115,820 |
+| Features | 12: elevation, slope, TWI, log flow accumulation, distance to stream, distance to street, ISA fraction, log lot area, enclave flag, topographic connectivity, topographic Cw, HAND_min |
+| Primary model | Ridge regression, spatial block cross-validation |
+| Comparison model | LightGBM + SHAP |
+| Archetypes | 4 (k-means on SHAP values): Hotspot · Lowland baseline · Upland baseline · Upland shield |
+| ISA paradox | Q5 flooded less than Q1 in all four archetypes |
+| Largest reversal | Hotspot: −1.31 ft (Q5 − Q1, 95 % CI excludes 0) |
+| Dose-response saturation | +40 % ISA; recruitment rate plateaus beyond this point |
+
+Full cross-validation metrics: `outputs/tables/cv_summary_v2.csv`
+Per-fold breakdown: `outputs/tables/per_fold_metrics_ridge.csv`
+
+---
+
+## Limitations
+
+Single event (Hurricane Harvey, 2017) — a saturation-limited extreme with
+limited generalizability across return periods. Single watershed in a
+uniquely unzoned city. Cross-sectional analysis only. Counterfactuals are
+model-internal feature perturbations, not hydraulic predictions of physical
+interventions.
+
+---
+
+## Citation
+
+```bibtex
+@article{impervious_paradox_2025,
+  title   = {The Impervious Paradox: Parcel-Scale Urban Flood Risk and the
+             Limits of Impervious-Surface Reduction in {Houston}'s {Brays Bayou}},
+  author  = {Lorenzo [Last Name]},
+  journal = {Computers, Environment and Urban Systems},
+  year    = {2025},
+  note    = {Under review},
+  url     = {https://github.com/YOUR_USERNAME/impervious-paradox}
+}
+```
+
+*Update author, volume, pages, and DOI upon acceptance.*
+
+---
+
+## License
+
+Code: [MIT License](LICENSE).
+
+Data sources carry their own licenses; see [`data/README.md`](data/README.md)
+for per-source terms. GHSL ISA is CC BY 4.0; HCAD, FEMA, USGS, and NLCD
+products are US public-domain or equivalent.
+
+---
+
+## Contact
+
+**[Your name]**
+[Institution]
+[Email or ORCID]
+
+---
+
+## Acknowledgements
+
+- **FEMA** — Hurricane Harvey flood-depth raster (3 m resolution, 2017).
+- **HCAD** (Harris County Appraisal District) — parcel geometry and
+  attributes.
+- **GHSL / European Commission Joint Research Centre** — Global Human
+  Settlement Layer ISA 2015.
+- **USGS** — 3DEP 10 m DEM and National Hydrography Dataset (NHD).
+- **MRLC / USGS** — National Land Cover Database 2016.
+- **OpenStreetMap contributors** — street network data (ODbL).

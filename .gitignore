@@ -1,0 +1,69 @@
+# Credentials and secrets
+.env
+.env.*
+*.pem
+*.key
+secrets/
+credentials/
+
+# Notebooks (none currently exist, but in case any get added later)
+.ipynb_checkpoints/
+
+# Local IDE configs
+.claude/
+.vscode/
+.idea/
+*.code-workspace
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Python build artifacts
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.venv/
+venv/
+env/
+
+# Data — large geospatial
+data/raw/**
+data/processed/**
+data/houston-flood-ml/
+old_data/
+*.tif
+*.tiff
+*.gpkg
+*.shp
+*.shx
+*.dbf
+*.prj
+*.cpg
+*.parquet
+*.gdb/
+
+# Specific paper-pipeline intermediates
+outputs/results/parcel_archetypes_v2.gpkg
+outputs/results/parcel_archetypes_v2_nlcd.gpkg
+outputs/results/parcel_archetypes_v2.csv
+outputs/results/dose_response_results.csv
+outputs/results/feature_matrix_nlcd.csv
+outputs/results/counterfactual_*.csv
+outputs/results/residential_archetypes.csv
+outputs/intermediate/
+
+# Excluded figure subfolders (not part of paper deliverables)
+outputs/figures/modeling_v2/
+outputs/figures/interpretation_v2/
+outputs/figures/interventions_v2/
+outputs/figures/10m/
+outputs/figures/nlcd/
+outputs/figures/residential_hotspots/
+outputs/figures/verification/
+outputs/figures/paper/preview/
+outputs/slides/
+outputs/figures/*.png
+!outputs/figures/paper/

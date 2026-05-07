@@ -1,0 +1,26 @@
+# Python 3.12+ recommended (developed on 3.12.10)
+
+# ── Geospatial ────────────────────────────────────────────────────────────────
+geopandas==1.0.1
+rasterio==1.4.3
+# pysheds 0.4 has a known incompatibility with numpy >=2.0 (np.can_cast removed
+# in NEP 50). compute_hand_10m.py patches this at runtime; do not upgrade either
+# package independently without testing.
+pysheds==0.4
+exactextract==0.3.0
+requests==2.32.3
+
+# ── ML ────────────────────────────────────────────────────────────────────────
+scikit-learn==1.6.1
+lightgbm==4.6.0
+shap==0.47.2
+
+# ── Analysis ──────────────────────────────────────────────────────────────────
+numpy==2.2.4
+pandas==2.2.3
+scipy==1.15.2
+
+# ── Visualization ─────────────────────────────────────────────────────────────
+matplotlib==3.10.1
+seaborn==0.13.2
+Pillow==11.3.0
