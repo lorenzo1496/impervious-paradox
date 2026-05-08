@@ -147,30 +147,33 @@ isa_idx = FEATURES.index('ISA_frac')
 cw_idx  = FEATURES.index('Cw_topo')
 dts_idx = FEATURES.index('dist_to_stream')
 
-# Counterfactual feature matrix for residential rows only
-X_res    = fm_res[FEATURES].values.astype(float)
-isa_old  = X_res[:, isa_idx]
-isa_new  = np.minimum(isa_old * 1.20, 1.0)
-dts_vals = np.maximum(X_res[:, dts_idx], 1.0)
-cw_new   = isa_new / dts_vals
+def _apply_20pct_isa_cf(df):
+    """Add +20% ISA counterfactual columns to df in-place.
+    df must already contain FEATURES columns and ridge/rf base predictions.
+    Uses isa_idx, cw_idx, dts_idx, sc, ridge_mean, ridge_max, rf_clf from scope.
+    """
+    X        = df[FEATURES].values.astype(float)
+    isa_old  = X[:, isa_idx]
+    isa_new  = np.minimum(isa_old * 1.20, 1.0)
+    dts_vals = np.maximum(X[:, dts_idx], 1.0)
+    cw_new   = isa_new / dts_vals
+    X_cf     = X.copy()
+    X_cf[:, isa_idx] = isa_new
+    X_cf[:, cw_idx]  = cw_new
+    X_cf_sc  = sc.transform(X_cf)
+    df['delta_isa']        = isa_new - isa_old
+    df['ridge_mean_cf']    = ridge_mean.predict(X_cf_sc)
+    df['ridge_max_cf']     = ridge_max.predict(X_cf_sc)
+    df['rf_class_cf']      = rf_clf.predict(X_cf_sc)
+    df['delta_ridge_mean'] = df['ridge_mean_cf'] - df['ridge_mean_base']
+    df['delta_ridge_max']  = df['ridge_max_cf']  - df['ridge_max_base']
+    df['class_jump']       = df['rf_class_cf'].astype(int) - df['rf_class_base'].astype(int)
+    df['jumped_up']        = (df['class_jump'] > 0).astype(int)
+    df['jumped_to_class3'] = ((df['rf_class_cf'] == 3) &
+                               (df['rf_class_base'] < 3)).astype(int)
 
-X_res_cf = X_res.copy()
-X_res_cf[:, isa_idx] = isa_new
-X_res_cf[:, cw_idx]  = cw_new
-
-X_res_sc    = sc.transform(X_res)
-X_res_cf_sc = sc.transform(X_res_cf)
-
-fm_res['delta_isa']        = isa_new - isa_old
-fm_res['ridge_mean_cf']    = ridge_mean.predict(X_res_cf_sc)
-fm_res['ridge_max_cf']     = ridge_max.predict(X_res_cf_sc)
-fm_res['rf_class_cf']      = rf_clf.predict(X_res_cf_sc)
-fm_res['delta_ridge_mean'] = fm_res['ridge_mean_cf'] - fm_res['ridge_mean_base']
-fm_res['delta_ridge_max']  = fm_res['ridge_max_cf']  - fm_res['ridge_max_base']
-fm_res['class_jump']       = fm_res['rf_class_cf'].astype(int) - fm_res['rf_class_base'].astype(int)
-fm_res['jumped_up']        = (fm_res['class_jump'] > 0).astype(int)
-fm_res['jumped_to_class3'] = ((fm_res['rf_class_cf'] == 3) &
-                               (fm_res['rf_class_base'] < 3)).astype(int)
+# Counterfactual for residential rows
+_apply_20pct_isa_cf(fm_res)
 
 n_res_total    = len(fm_res)
 n_res_jumped   = int(fm_res['jumped_up'].sum())
@@ -266,6 +269,32 @@ for g_name, g_mask_full in groups.items():
               f'{escaped.sum():>5} ({pct_escaped:.1f}%)')
 
 scen_df = pd.DataFrame(scen_results)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Derived intermediate — all-parcel counterfactual for §6 comparison
+# Reuses the already-trained models on the full feature matrix `fm`
+# to produce counterfactual_20pct_isa.csv. Required by the
+# residential-vs-all-parcels robustness check below.
+# ─────────────────────────────────────────────────────────────────────────────
+_isa_base_cols = ['parcel_id', 'archetype', 'risk_class',
+                  'ridge_mean_base', 'ridge_max_base', 'rf_class_base']
+fm_all_cf = fm[list(dict.fromkeys(_isa_base_cols + FEATURES))].copy()
+_apply_20pct_isa_cf(fm_all_cf)
+
+_isa_out_cols = [
+    'parcel_id', 'archetype', 'risk_class', 'ISA_frac', 'Cw_topo',
+    'ridge_mean_base', 'ridge_max_base', 'rf_class_base',
+    'ridge_mean_cf', 'ridge_max_cf', 'rf_class_cf',
+    'delta_isa', 'delta_ridge_mean', 'delta_ridge_max',
+    'class_jump', 'jumped_up', 'jumped_to_class3',
+]
+_isa_path = RES_DIR / 'counterfactual_20pct_isa.csv'
+try:
+    fm_all_cf[_isa_out_cols].to_csv(_isa_path, index=False)
+    print(f'  Saved counterfactual_20pct_isa.csv  ({len(fm_all_cf):,} rows)')
+except PermissionError:
+    print(f'  ERROR: {_isa_path} is open in another process — close it and re-run.')
+    sys.exit(1)
 
 # ══════════════════════════════════════════════════════════════════════════════
 # 6. Comparison: residential vs all-parcels
