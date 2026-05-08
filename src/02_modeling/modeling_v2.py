@@ -363,6 +363,22 @@ summary.to_csv(out_csv, index=False)
 print(f'\nSaved: {out_csv}')
 print(f'Total CV runtime: {time.time() - t0:.0f}s')
 
+# Per-fold Ridge metrics — required by generate_cv_diagnostic_figures.py and compose_supp_s1.py
+TAB_DIR = BASE / 'outputs' / 'tables'
+TAB_DIR.mkdir(parents=True, exist_ok=True)
+pf_rows = []
+for _key, _mdf in per_fold_store.items():
+    _model, _target, _fold_scheme = _key.split('__')
+    if _model == 'ridge' and _target == 'target_max_log':
+        _tmp = _mdf[['fold', 'n_test', 'spearman', 'ndcg_top_k']].copy()
+        _tmp.insert(0, 'fold_scheme', _fold_scheme)
+        _tmp.rename(columns={'fold': 'fold_id', 'ndcg_top_k': 'ndcg_top10pct'}, inplace=True)
+        pf_rows.append(_tmp)
+pf_df = pd.concat(pf_rows, ignore_index=True)
+pf_out = TAB_DIR / 'per_fold_metrics_ridge.csv'
+pf_df.to_csv(pf_out, index=False)
+print(f'Saved: {pf_out}  ({len(pf_df)} rows)')
+
 # ── RF classifier (2 CV schemes) ──────────────────────────────────────────────
 print('\n' + '─' * 65)
 print('Running RF classifier (FloodGenome)  (2 CV schemes)')
